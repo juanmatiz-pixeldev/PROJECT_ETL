@@ -4,11 +4,15 @@ import {
   CartesianGrid, Tooltip, Legend
 } from 'recharts';
 
+// ── BUG FIX: los nombres deben coincidir EXACTAMENTE con los valores que
+//    vienen de la API (campo `activity`). Los nombres anteriores eran
+//    abreviaciones que no coincidían con las claves del objeto byDate,
+//    por lo que todas las líneas se graficaban vacías. ──
 const ACTIVITY_NAMES = [
   'Total comercio mayorista',
-  'Materias primas, alimentos, bebidas y artículos domésticos',
-  'Productos farmacéuticos, medicinales, cosméticos y de tocador',
-  'Maquinaria y equipo'
+  '462-463-4641-4642-4643-4644-4649. Materias primas agropecuarias; alimentos, bebidas y tabaco; artículos y enseres domésticos',
+  '4645. Productos farmacéuticos, medicinales, cosméticos y de tocador',
+  '465-466-469. Maquinaria y equipo; especializado y no especializado',
 ];
 
 const COLORS = ['#0d9488', '#4f46e5', '#f59e0b', '#e11d48'];
@@ -45,7 +49,11 @@ export default function MonthlySalesChart({ rows = [] }) {
     byDate[key][r.activity] = Number(r.cv_pct);
   });
 
-  const data = Object.values(byDate);
+  // ── BUG FIX: ordenar por clave de fecha para que el eje X sea cronológico ──
+  const data = Object.entries(byDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, v]) => v);
+
   return (
     <div className="chart-box tall">
       <ResponsiveContainer width="100%" height="100%">
