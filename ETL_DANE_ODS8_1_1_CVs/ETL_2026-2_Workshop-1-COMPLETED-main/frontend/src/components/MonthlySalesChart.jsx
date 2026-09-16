@@ -1,0 +1,73 @@
+import React from 'react';
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip, Legend
+} from 'recharts';
+
+const ACTIVITY_NAMES = [
+  'Total comercio mayorista',
+  'Materias primas, alimentos, bebidas y artículos domésticos',
+  'Productos farmacéuticos, medicinales, cosméticos y de tocador',
+  'Maquinaria y equipo'
+];
+
+const COLORS = ['#0d9488', '#4f46e5', '#f59e0b', '#e11d48'];
+
+function shortName(name) {
+  if (name.startsWith('Total')) return 'Total mayorista';
+  if (name.startsWith('462-')) return 'Materias primas y alimentos';
+  if (name.startsWith('4645')) return 'Farmacéuticos y cosméticos';
+  return 'Maquinaria y equipo';
+}
+
+function Tip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rt-tip">
+      <div className="rt-title">{label}</div>
+      {payload.map((p) => (
+        <div className="rt-row" key={p.dataKey}>
+          <span className="rt-dot" style={{ background: p.color }} />
+          {shortName(p.dataKey)} <strong>{Number(p.value).toFixed(2)}%</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default function MonthlySalesChart({ rows = [] }) {
+  if (!rows.length) return <p className="empty">Sin datos del CV.</p>;
+
+  const byDate = {};
+  rows.forEach((r) => {
+    const key = `${r.year}-${String(r.month).padStart(2, '0')}`;
+    if (!byDate[key]) byDate[key] = { name: `${r.month_name.trim()} ${r.year}` };
+    byDate[key][r.activity] = Number(r.cv_pct);
+  });
+
+  const data = Object.values(byDate);
+  return (
+    <div className="chart-box tall">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data} margin={{ top: 10, right: 18, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e8eef6" vertical={false} />
+          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748b' }} interval="preserveStartEnd" />
+          <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => `${v}%`} />
+          <Tooltip content={<Tip />} />
+          <Legend formatter={(value) => shortName(value)} wrapperStyle={{ fontSize: 11 }} />
+          {ACTIVITY_NAMES.map((activity, i) => (
+            <Line
+              key={activity}
+              type="monotone"
+              dataKey={activity}
+              stroke={COLORS[i]}
+              strokeWidth={2.5}
+              dot={false}
+              connectNulls
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
