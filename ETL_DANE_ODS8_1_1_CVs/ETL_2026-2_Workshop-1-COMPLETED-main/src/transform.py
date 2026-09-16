@@ -8,7 +8,7 @@ La transformación normaliza esa estructura para facilitar consultas SQL.
 from __future__ import annotations
 
 from typing import Dict
-import re
+
 import pandas as pd
 
 ACTIVITIES = {
@@ -28,6 +28,12 @@ MONTHS = {
     "septiembre": 9, "octubre": 10, "noviembre": 11, "diciembre": 12,
 }
 
+# ── BUG FIX: cada bloque de actividad ocupa 4 columnas (Var, L.i, L.s, C.v),
+#    no 5 como asumía el código original. El offset erróneo desplazaba las
+#    lecturas y mezclaba datos entre actividades. ──
+COLS_PER_ACTIVITY = 4
+COLS_PER_PERIOD = COLS_PER_ACTIVITY * len(ACTIVITIES)  # 16
+
 
 def _month_number(value) -> int | None:
     text = str(value).strip().lower()
@@ -43,7 +49,6 @@ def transform_emc_cv(df: pd.DataFrame) -> pd.DataFrame:
     data = df.copy()
 
     current_year = None
-    # 12 bloques: 3 períodos x 4 actividades; cada bloque tiene Var/L.i/L.s/C.v.
     for i in range(9, len(data)):
         year_value = data.iloc[i, 0]
         if pd.notna(year_value):
@@ -56,37 +61,45 @@ def transform_emc_cv(df: pd.DataFrame) -> pd.DataFrame:
             continue
 
         for period_idx, period_name in PERIODS.items():
-            base = 2 + period_idx * 20
+            base = 2 + period_idx * COLS_PER_PERIOD
             for activity_idx, activity_name in ACTIVITIES.items():
-                col = base + activity_idx * 5
-                values = data.iloc[i, col:col + 4].tolist()
-                if len(values) < 4:
+                col = base + activity_idx * COLS_PER_ACTIVITY
+                values = data.iloc[i, col : col + COLS_PER_ACTIVITY].tolist()
+                if len(values) < COLS_PER_ACTIVITY:
                     continue
                 var, li, ls, cv = values
                 if pd.isna(var) and pd.isna(cv):
                     continue
-                rows.append({
-                    "year": current_year,
-                    "month": month,
-                    "month_name": str(data.iloc[i, 1]).strip(),
-                    "period": period_name,
-                    "activity": activity_name,
-                    "variation_pct": pd.to_numeric(var, errors="coerce"),
-                    "confidence_lower": pd.to_numeric(li, errors="coerce"),
-                    "confidence_upper": pd.to_numeric(ls, errors="coerce"),
-                    "cv_pct": pd.to_numeric(cv, errors="coerce"),
-                })
+                rows.append(
+                    {
+                        "year": current_year,
+                        "month": month,
+                        "month_name": str(data.iloc[i, 1]).strip(),
+                        "period": period_name,
+                        "activity": activity_name,
+                        "variation_pct": pd.to_numeric(var, errors="coerce"),
+                        "confidence_lower": pd.to_numeric(li, errors="coerce"),
+                        "confidence_upper": pd.to_numeric(ls, errors="coerce"),
+                        "cv_pct": pd.to_numeric(cv, errors="coerce"),
+                    }
+                )
 
     result = pd.DataFrame(rows)
     if result.empty:
-        raise ValueError("No se encontraron registros válidos en la hoja 1.1a -CVs- Int.")
+        raise ValueError(
+            "No se encontraron registros válidos en la hoja 1.1a -CVs- Int."
+        )
 
     result["date_key"] = result["year"] * 100 + result["month"]
-    result = result[[
-        "date_key", "year", "month", "month_name", "period", "activity",
-        "variation_pct", "confidence_lower", "confidence_upper", "cv_pct"
-    ]]
-    return result.sort_values(["year", "month", "period", "activity"]).reset_index(drop=True)
+    result = result[
+        [
+            "date_key", "year", "month", "month_name", "period", "activity",
+            "variation_pct", "confidence_lower", "confidence_upper", "cv_pct",
+        ]
+    ]
+    return result.sort_values(
+        ["year", "month", "period", "activity"]
+    ).reset_index(drop=True)
 
 
 def transform_all(raw_dfs: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
@@ -102,7 +115,9 @@ def transform_all(raw_dfs: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
 
 if __name__ == "__main__":
     import sys
+
     sys.path.append(str(__import__("pathlib").Path(__file__).parent))
     from extract import extract_all
+
     out = transform_all(extract_all())
     print(out["fact_emc_cv"].head())
