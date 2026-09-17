@@ -4,10 +4,7 @@ import {
   CartesianGrid, Tooltip, Legend
 } from 'recharts';
 
-// ── BUG FIX: los nombres deben coincidir EXACTAMENTE con los valores que
-//    vienen de la API (campo `activity`). Los nombres anteriores eran
-//    abreviaciones que no coincidían con las claves del objeto byDate,
-//    por lo que todas las líneas se graficaban vacías. ──
+// Nombres EXACTOS que produce el ETL (deben coincidir con r.activity de la API)
 const ACTIVITY_NAMES = [
   'Total comercio mayorista',
   '462-463-4641-4642-4643-4644-4649. Materias primas agropecuarias; alimentos, bebidas y tabaco; artículos y enseres domésticos',
@@ -49,7 +46,7 @@ export default function MonthlySalesChart({ rows = [] }) {
     byDate[key][r.activity] = Number(r.cv_pct);
   });
 
-  // ── BUG FIX: ordenar por clave de fecha para que el eje X sea cronológico ──
+  // Ordenar cronológicamente por clave YYYY-MM
   const data = Object.entries(byDate)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, v]) => v);
